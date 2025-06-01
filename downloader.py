@@ -7,19 +7,19 @@ from urllib.parse import urlparse
 # import instaloader # Removed instaloader
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format=\'%(asctime)s - %(levelname)s - %(message)s\')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 DOWNLOAD_DIR = "/tmp" # Use /tmp for cloud compatibility
 # Attempt to find yt-dlp path reliably
 try:
-    YT_DLP_PATH = subprocess.check_output([\'which\', \'yt-dlp\'], text=True).strip()
+    YT_DLP_PATH = subprocess.check_output(['which', 'yt-dlp'], text=True).strip()
 except subprocess.CalledProcessError:
-    # Fallback if \'which\' fails or yt-dlp is not in PATH (might happen in some envs)
+    # Fallback if 'which' fails or yt-dlp is not in PATH (might happen in some envs)
     # Check common pip install locations
     possible_paths = [
-        \'/usr/local/bin/yt-dlp\',
-        os.path.expanduser(\'~/.local/bin/yt-dlp\'),
-        \'/opt/venv/bin/yt-dlp\' # Example venv path
+        '/usr/local/bin/yt-dlp',
+        os.path.expanduser('~/.local/bin/yt-dlp'),
+        '/opt/venv/bin/yt-dlp' # Example venv path
     ]
     for path in possible_paths:
         if os.path.exists(path):
@@ -27,7 +27,7 @@ except subprocess.CalledProcessError:
             break
     else:
         logging.error("yt-dlp command not found. Please ensure it is installed and in PATH.")
-        YT_DLP_PATH = \'yt-dlp\' # Default to just the command name, hoping it\'s in PATH
+        YT_DLP_PATH = 'yt-dlp' # Default to just the command name, hoping it's in PATH
 
 logging.info(f"Using yt-dlp path: {YT_DLP_PATH}")
 
@@ -37,44 +37,44 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 def get_platform(url):
     """Identifies the social media platform from the URL."""
     parsed_url = urlparse(url)
-    hostname = parsed_url.hostname.lower() if parsed_url.hostname else \'\'
+    hostname = parsed_url.hostname.lower() if parsed_url.hostname else ''
 
-    if \'youtube.com\' in hostname or \'youtu.be\' in hostname:
-        return \'youtube\'
-    elif \'instagram.com\' in hostname:
-        return \'instagram\'
-    elif \'facebook.com\' in hostname or \'fb.watch\' in hostname:
-        return \'facebook\'
-    elif \'x.com\' in hostname or \'twitter.com\' in hostname:
-        return \'x\'
+    if 'youtube.com' in hostname or 'youtu.be' in hostname:
+        return 'youtube'
+    elif 'instagram.com' in hostname:
+        return 'instagram'
+    elif 'facebook.com' in hostname or 'fb.watch' in hostname:
+        return 'facebook'
+    elif 'x.com' in hostname or 'twitter.com' in hostname:
+        return 'x'
     else:
         return None
 
 def download_with_yt_dlp(url, platform):
     """Downloads media using yt-dlp."""
     # Sanitize ID for filename (replace non-alphanumeric) - basic example
-    sanitized_id = re.sub(r\'[\\W]+\', \'_\', url.split(\'/\')[-1] if \'/\' in url else url)
+    sanitized_id = re.sub(r'\W+', '_', url.split('/')[-1] if '/' in url else url)
     if not sanitized_id:
-        sanitized_id = \'media\'
+        sanitized_id = 'media'
     # Use a simpler output template, especially for /tmp
     output_template = os.path.join(DOWNLOAD_DIR, f"{platform}_{sanitized_id}_%(id)s.%(ext)s")
     
     command = [
         YT_DLP_PATH,
-        \'--no-check-certificate\',
-        \'-o\', output_template,
-        \'-f\', \'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best\', # Prefer mp4
-        \'--merge-output-format\', \'mp4\',
-        # \'--max-filesize\', \'49m\', # Add Telegram\'s 50MB limit approx
+        '--no-check-certificate',
+        '-o', output_template,
+        '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', # Prefer mp4
+        '--merge-output-format', 'mp4',
+        # '--max-filesize', '49m', # Add Telegram's 50MB limit approx
         url
     ]
     logging.info(f"Attempting download from {platform} using yt-dlp: {url}")
-    logging.info(f"Executing command: {\' \'.join(command)}")
+    logging.info(f"Executing command: {' '.join(command)}")
     try:
         # Run yt-dlp and capture output
         process = subprocess.run(command, capture_output=True, text=True, check=False, timeout=300) # 5 min timeout, check=False to parse output even on error
-        logging.info(f"yt-dlp stdout:\\n{process.stdout}")
-        logging.warning(f"yt-dlp stderr:\\n{process.stderr}") # Use warning for stderr as it often contains non-fatal messages
+        logging.info(f"yt-dlp stdout:\n{process.stdout}")
+        logging.warning(f"yt-dlp stderr:\n{process.stderr}") # Use warning for stderr as it often contains non-fatal messages
 
         # Find the downloaded file path from yt-dlp output
         output_lines = process.stdout.splitlines()
@@ -82,10 +82,10 @@ def download_with_yt_dlp(url, platform):
         
         # More robust search for filename patterns
         patterns = [
-            r\'Merging formats into "(.*?)\"\',
-            r\'Destination: (.*?)$\',
-            r\'Fixing MPEG-TS in "(.*?)\"\',
-            r\'(.*?) has already been downloaded\'
+            r'Merging formats into "(.*?)"',
+            r'Destination: (.*?)$',
+            r'Fixing MPEG-TS in "(.*?)"',
+            r'(.*?) has already been downloaded'
         ]
         
         for line in output_lines + process.stderr.splitlines(): # Check both stdout and stderr
@@ -93,10 +93,10 @@ def download_with_yt_dlp(url, platform):
                 match = re.search(pattern, line)
                 if match:
                     potential_file = match.group(1).strip()
-                    # Ensure it\'s likely a file path within our download dir
+                    # Ensure it's likely a file path within our download dir
                     if potential_file.startswith(DOWNLOAD_DIR) and os.path.exists(potential_file):
                         downloaded_file = potential_file
-                        logging.info(f"Found potential file via pattern \'{pattern}\': {downloaded_file}")
+                        logging.info(f"Found potential file via pattern '{pattern}': {downloaded_file}")
                         break # Found a likely candidate
             if downloaded_file: # Stop searching lines if found
                  break
@@ -125,7 +125,7 @@ def download_with_yt_dlp(url, platform):
                  # Check if the process indicated an error explicitly
                  if "ERROR:" in process.stderr or process.returncode != 0:
                      # Try to extract a meaningful error message
-                     error_match = re.search(r"ERROR: (.*?)$\", process.stderr, re.MULTILINE)
+                     error_match = re.search(r"ERROR: (.*?)$", process.stderr, re.MULTILINE)
                      if error_match:
                          # Sanitize common non-informative errors
                          err_msg = error_match.group(1).strip()
@@ -162,23 +162,23 @@ def download_media(url):
     platform = get_platform(url)
     logging.info(f"Detected platform: {platform} for URL: {url}")
 
-    if platform == \'youtube\':
-        return download_with_yt_dlp(url, \'youtube\')
-    elif platform == \'x\':
-        return download_with_yt_dlp(url, \'x\')
-    elif platform == \'facebook\':
+    if platform == 'youtube':
+        return download_with_yt_dlp(url, 'youtube')
+    elif platform == 'x':
+        return download_with_yt_dlp(url, 'x')
+    elif platform == 'facebook':
         # FB often requires cookies for yt-dlp, might fail otherwise
         logging.warning("Facebook downloads via yt-dlp might be unreliable without cookies.")
-        return download_with_yt_dlp(url, \'facebook\')
-    elif platform == \'instagram\':
+        return download_with_yt_dlp(url, 'facebook')
+    elif platform == 'instagram':
         # Use yt-dlp directly for Instagram, skipping Instaloader
         logging.info("Using yt-dlp directly for Instagram download.")
-        return download_with_yt_dlp(url, \'instagram\')
+        return download_with_yt_dlp(url, 'instagram')
     else:
         logging.warning(f"Unsupported URL or platform: {url}")
         # Optionally, try yt-dlp as a generic fallback for unknown URLs
         logging.info("Attempting download with generic yt-dlp for unsupported URL...")
-        result = download_with_yt_dlp(url, \'generic\')
+        result = download_with_yt_dlp(url, 'generic')
         if isinstance(result, str) and result.startswith("Error:"):
              return "Error: Unsupported URL or download failed."
         elif result is None:
@@ -200,7 +200,7 @@ if __name__ == "__main__":
     
     print("--- Starting Downloader Tests (Instaloader Removed) ---")
     for test_url in test_urls:
-        print(f"\\nTesting URL: {test_url}")
+        print(f"\nTesting URL: {test_url}")
         file_path_or_error = download_media(test_url)
         if isinstance(file_path_or_error, str) and file_path_or_error.startswith("Error:"):
             print(f"Download Failed: {file_path_or_error}")
