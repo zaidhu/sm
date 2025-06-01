@@ -4,7 +4,7 @@ This bot downloads media (videos/images) from YouTube, Instagram, X (Twitter), a
 
 ## Features
 
-*   Supports YouTube (videos, shorts), Instagram (posts, reels), X/Twitter (videos/images), Facebook (videos, reels - may require cookies for some content).
+*   Supports YouTube (videos, shorts), Instagram (posts, reels - uses yt-dlp), X/Twitter (videos/images), Facebook (videos, reels - may require cookies for some content).
 *   Receives a link via Telegram message.
 *   Downloads the corresponding media file.
 *   Sends the downloaded file back to the user with a custom caption.
