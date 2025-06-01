@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 # --- Configuration ---
 # Replace 'YOUR_TELEGRAM_BOT_TOKEN' with the actual token
-TELEGRAM_BOT_TOKEN = "7148443787:AAHLWENiy8a4MPfjTJFvTU6_5oYsvV-maSo" 
+TELEGRAM_BOT_TOKEN = "6988733305:AAF_daE_W97fvKdXXNElLzANXgsu5FW5crw" 
 # Check if running in an environment where the token is set as an env variable
 if os.environ.get("TELEGRAM_BOT_TOKEN"):
     TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
