@@ -1,6 +1,8 @@
 # Telegram Social Media Downloader Bot (Clean Version)
 
 This Telegram bot downloads media (videos, images) from links provided by users for platforms like YouTube, Instagram, X (Twitter), and Facebook.
+## Deploy 
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/NotHemraj/Sm)
 
 ## Features
 
