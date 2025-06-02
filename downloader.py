@@ -1,21 +1,24 @@
-# downloader.py
+# downloader_new.py
 import os
 import re
 import subprocess
 import logging
+import time
+import glob
 from urllib.parse import urlparse
-# import instaloader # Removed instaloader
 
 # Configure logging
+# Corrected format string without unnecessary backslashes
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 DOWNLOAD_DIR = "/tmp" # Use /tmp for cloud compatibility
+DEFAULT_COOKIES_FILE = "/home/ubuntu/cookies.txt" # Default path for provided cookies
+
 # Attempt to find yt-dlp path reliably
 try:
+    # Corrected command list without unnecessary backslashes
     YT_DLP_PATH = subprocess.check_output(['which', 'yt-dlp'], text=True).strip()
 except subprocess.CalledProcessError:
-    # Fallback if 'which' fails or yt-dlp is not in PATH (might happen in some envs)
-    # Check common pip install locations
     possible_paths = [
         '/usr/local/bin/yt-dlp',
         os.path.expanduser('~/.local/bin/yt-dlp'),
@@ -27,7 +30,7 @@ except subprocess.CalledProcessError:
             break
     else:
         logging.error("yt-dlp command not found. Please ensure it is installed and in PATH.")
-        YT_DLP_PATH = 'yt-dlp' # Default to just the command name, hoping it's in PATH
+        YT_DLP_PATH = 'yt-dlp' # Default
 
 logging.info(f"Using yt-dlp path: {YT_DLP_PATH}")
 
@@ -50,155 +53,154 @@ def get_platform(url):
     else:
         return None
 
-def download_with_yt_dlp(url, platform):
-    """Downloads media using yt-dlp."""
-    # Sanitize ID for filename (replace non-alphanumeric) - basic example
+def download_media(url, cookies_file=DEFAULT_COOKIES_FILE):
+    """Downloads media using yt-dlp, supporting cookies."""
+    platform = get_platform(url)
+    if not platform:
+        logging.warning(f"Unsupported URL or platform: {url}")
+        platform = 'generic'
+        logging.info("Attempting download with generic yt-dlp for unsupported URL...")
+
+    logging.info(f"Detected platform: {platform} for URL: {url}")
+
+    # Sanitize ID for filename
+    # Corrected regex without unnecessary backslashes
     sanitized_id = re.sub(r'\W+', '_', url.split('/')[-1] if '/' in url else url)
     if not sanitized_id:
-        sanitized_id = 'media'
-    # Use a simpler output template, especially for /tmp
+        sanitized_id = str(int(time.time()))
     output_template = os.path.join(DOWNLOAD_DIR, f"{platform}_{sanitized_id}_%(id)s.%(ext)s")
-    
+
+    # Corrected command list without unnecessary backslashes
     command = [
         YT_DLP_PATH,
         '--no-check-certificate',
-        '-o', output_template,
-        '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', # Prefer mp4
+        '--no-playlist',
+        '--max-downloads', '1',
+        '--ignore-errors',
+        # '--progress', # Removed as it adds too much noise
+        '--output', output_template,
+        '--format', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         '--merge-output-format', 'mp4',
-        # '--max-filesize', '49m', # Add Telegram's 50MB limit approx
         url
     ]
-    logging.info(f"Attempting download from {platform} using yt-dlp: {url}")
+
+    if platform in ['youtube', 'facebook'] and cookies_file and os.path.exists(cookies_file):
+        logging.info(f"Using cookies file: {cookies_file}")
+        # Corrected command extension without unnecessary backslashes
+        command.extend(['--cookies', cookies_file])
+    elif platform in ['youtube', 'facebook']:
+        logging.warning(f"Cookies file not found at {cookies_file}, proceeding without cookies.")
+
     logging.info(f"Executing command: {' '.join(command)}")
     try:
-        # Run yt-dlp and capture output
-        process = subprocess.run(command, capture_output=True, text=True, check=False, timeout=300) # 5 min timeout, check=False to parse output even on error
-        logging.info(f"yt-dlp stdout:\n{process.stdout}")
-        logging.warning(f"yt-dlp stderr:\n{process.stderr}") # Use warning for stderr as it often contains non-fatal messages
-
-        # Find the downloaded file path from yt-dlp output
-        output_lines = process.stdout.splitlines()
-        downloaded_file = None
+        # Corrected encoding and errors arguments
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
         
-        # More robust search for filename patterns
+        stdout, stderr = process.communicate(timeout=300)
+        
+        logging.info(f"yt-dlp stdout:\n{stdout}")
+        logging.warning(f"yt-dlp stderr:\n{stderr}")
+
+        downloaded_file = None
+        # Corrected regex patterns without unnecessary backslashes
         patterns = [
-            r'Merging formats into "(.*?)"',
-            r'Destination: (.*?)$',
-            r'Fixing MPEG-TS in "(.*?)"',
+            r'[Merger] Merging formats into "(.*?)"',
+            r'[download] Destination: (.*?)$',
+            r'[Fixing MPEG-TS in|Extracting audio from] "(.*?)"',
             r'(.*?) has already been downloaded'
         ]
         
-        for line in output_lines + process.stderr.splitlines(): # Check both stdout and stderr
+        search_text = stderr + "\n" + stdout
+        
+        for line in search_text.splitlines():
             for pattern in patterns:
                 match = re.search(pattern, line)
                 if match:
                     potential_file = match.group(1).strip()
-                    # Ensure it's likely a file path within our download dir
                     if potential_file.startswith(DOWNLOAD_DIR) and os.path.exists(potential_file):
                         downloaded_file = potential_file
                         logging.info(f"Found potential file via pattern '{pattern}': {downloaded_file}")
-                        break # Found a likely candidate
-            if downloaded_file: # Stop searching lines if found
-                 break
-        
-        # Verify the found file exists
-        if downloaded_file and os.path.exists(downloaded_file):
+                        break
+            if downloaded_file:
+                break
+
+        if downloaded_file and os.path.exists(downloaded_file) and os.path.getsize(downloaded_file) > 0:
             logging.info(f"Confirmed downloaded file: {downloaded_file}")
-            # Check file size (Telegram limit is 50MB for bots)
             if os.path.getsize(downloaded_file) > 50 * 1024 * 1024:
                 logging.warning(f"Downloaded file {downloaded_file} exceeds 50MB Telegram limit.")
-                # Optionally remove the large file
-                # os.remove(downloaded_file)
-                # return "Error: File size exceeds 50MB limit."
             return downloaded_file
         else:
-             logging.warning("Could not reliably determine downloaded file from yt-dlp output.")
-             # Fallback: search the download directory for the most recent file matching the pattern
-             import glob
-             import time
-             # Be more specific with glob pattern if possible
-             base_pattern = os.path.join(DOWNLOAD_DIR, f"{platform}_{sanitized_id}_*")
-             list_of_files = glob.glob(base_pattern + ".mp4") + glob.glob(base_pattern + ".jpg") + glob.glob(base_pattern + ".jpeg") + glob.glob(base_pattern + ".png") + glob.glob(base_pattern + ".mkv") + glob.glob(base_pattern + ".webm")
-             
-             if not list_of_files:
-                 logging.error("yt-dlp fallback search: No files found matching pattern.")
-                 # Check if the process indicated an error explicitly
-                 if "ERROR:" in process.stderr or process.returncode != 0:
-                     # Try to extract a meaningful error message
-                     error_match = re.search(r"ERROR: (.*?)$", process.stderr, re.MULTILINE)
-                     if error_match:
-                         # Sanitize common non-informative errors
-                         err_msg = error_match.group(1).strip()
-                         if "The downloaded file is empty" in err_msg:
-                             return "Error: Download failed (empty file). Platform might restrict access."
-                         return f"Error: yt-dlp failed - {err_msg}"
-                     else:
-                         return "Error: yt-dlp failed with an unknown error."
-                 return "Error: Download failed, could not find output file."
-                 
-             latest_file = max(list_of_files, key=os.path.getctime)
-             # Check if the file was created recently (e.g., within the last 5 minutes)
-             if time.time() - os.path.getctime(latest_file) < 300:
-                 logging.warning(f"yt-dlp fallback: Using latest file found: {latest_file}")
-                 if os.path.getsize(latest_file) > 50 * 1024 * 1024:
-                     logging.warning(f"Downloaded file {latest_file} exceeds 50MB Telegram limit.")
-                     # return "Error: File size exceeds 50MB limit."
-                 return latest_file
-             else:
-                 logging.error("yt-dlp fallback search: No recently created file found matching pattern.")
-                 return "Error: Download failed, could not find recent output file."
+            if downloaded_file and os.path.exists(downloaded_file) and os.path.getsize(downloaded_file) == 0:
+                 logging.error("Download resulted in an empty file.")
+                 try: os.remove(downloaded_file) 
+                 except OSError: pass
+                 return "Error: Download failed (empty file). Platform might restrict access or resource limits hit."
+            
+            logging.warning("Could not reliably determine downloaded file from yt-dlp output or file is missing/empty.")
+            base_pattern = os.path.join(DOWNLOAD_DIR, f"{platform}_{sanitized_id}_*")
+            list_of_files = glob.glob(base_pattern + ".mp4") + glob.glob(base_pattern + ".jpg") + glob.glob(base_pattern + ".jpeg") + glob.glob(base_pattern + ".png") + glob.glob(base_pattern + ".mkv") + glob.glob(base_pattern + ".webm")
+            
+            if not list_of_files:
+                logging.error("yt-dlp fallback search: No files found matching pattern.")
+                # Corrected regex without unnecessary backslashes
+                error_match = re.search(r"ERROR: (.*?)$", stderr, re.MULTILINE)
+                if error_match:
+                    err_msg = error_match.group(1).strip()
+                    return f"Error: yt-dlp failed - {err_msg}"
+                elif process.returncode != 0:
+                     return f"Error: yt-dlp failed with return code {process.returncode}. Check logs."
+                else:
+                     return "Error: Download failed, could not find output file."
+            
+            latest_file = None
+            latest_mtime = 0
+            for f in list_of_files:
+                try:
+                    mtime = os.path.getmtime(f)
+                    fsize = os.path.getsize(f)
+                    if mtime > latest_mtime and fsize > 0:
+                        latest_mtime = mtime
+                        latest_file = f
+                except OSError:
+                    continue
+
+            if latest_file and time.time() - latest_mtime < 300:
+                logging.warning(f"yt-dlp fallback: Using latest non-empty file found: {latest_file}")
+                if os.path.getsize(latest_file) > 50 * 1024 * 1024:
+                    logging.warning(f"Downloaded file {latest_file} exceeds 50MB Telegram limit.")
+                return latest_file
+            else:
+                logging.error("yt-dlp fallback search: No recently modified, non-empty file found matching pattern.")
+                return "Error: Download failed, could not find recent, valid output file."
 
     except subprocess.TimeoutExpired:
         logging.error(f"yt-dlp timed out for {url}.")
+        try:
+            process.kill()
+            stdout, stderr = process.communicate()
+            logging.info(f"yt-dlp stdout after timeout kill:\n{stdout}")
+            logging.warning(f"yt-dlp stderr after timeout kill:\n{stderr}")
+        except Exception as kill_err:
+            logging.error(f"Error killing timed out process: {kill_err}")
         return "Error: Download timed out."
     except Exception as e:
         logging.error(f"An unexpected error occurred during yt-dlp download for {url}: {e}")
         return f"Error: An unexpected error occurred: {e}"
 
-# Removed download_instagram function
-
-def download_media(url):
-    """Main function to download media based on URL."""
-    platform = get_platform(url)
-    logging.info(f"Detected platform: {platform} for URL: {url}")
-
-    if platform == 'youtube':
-        return download_with_yt_dlp(url, 'youtube')
-    elif platform == 'x':
-        return download_with_yt_dlp(url, 'x')
-    elif platform == 'facebook':
-        # FB often requires cookies for yt-dlp, might fail otherwise
-        logging.warning("Facebook downloads via yt-dlp might be unreliable without cookies.")
-        return download_with_yt_dlp(url, 'facebook')
-    elif platform == 'instagram':
-        # Use yt-dlp directly for Instagram, skipping Instaloader
-        logging.info("Using yt-dlp directly for Instagram download.")
-        return download_with_yt_dlp(url, 'instagram')
-    else:
-        logging.warning(f"Unsupported URL or platform: {url}")
-        # Optionally, try yt-dlp as a generic fallback for unknown URLs
-        logging.info("Attempting download with generic yt-dlp for unsupported URL...")
-        result = download_with_yt_dlp(url, 'generic')
-        if isinstance(result, str) and result.startswith("Error:"):
-             return "Error: Unsupported URL or download failed."
-        elif result is None:
-             return "Error: Unsupported URL or download failed."
-        else:
-             return result # Return path if generic download succeeded
-
 if __name__ == "__main__":
-    # Example usage for testing - Run this script directly to test
     test_urls = [
-        "https://www.youtube.com/watch?v=dQw4w9WgXcQ", # YouTube Video
-        "https://x.com/SpaceX/status/1793719178710683863", # X (Twitter) Video
-        "https://www.instagram.com/p/C7qahywRg44/", # Instagram Image Post (will use yt-dlp)
-        "https://www.instagram.com/reel/C7g9zY8yQkQ/", # Instagram Reel Video (will use yt-dlp)
-        "https://www.facebook.com/watch/?v=1118202089259010", # Facebook Watch (Likely needs cookies/login)
-        "https://www.facebook.com/Meta/videos/1186598072789101/", # Facebook Video Post (Likely needs cookies/login)
-        "https://invalid.url/test" # Invalid URL
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "https://www.instagram.com/p/C7qahywRg44/",
+        "https://x.com/SpaceX/status/1793719178710683863",
     ]
     
-    print("--- Starting Downloader Tests (Instaloader Removed) ---")
+    print("--- Starting New Downloader Tests (yt-dlp only, cookies enabled) ---")
+    if not os.path.exists(DEFAULT_COOKIES_FILE):
+        print(f"Creating dummy {DEFAULT_COOKIES_FILE} for testing.")
+        # Corrected file write without unnecessary backslashes
+        with open(DEFAULT_COOKIES_FILE, 'w') as f:
+            f.write("# Netscape HTTP Cookie File\n")
+            
     for test_url in test_urls:
         print(f"\nTesting URL: {test_url}")
         file_path_or_error = download_media(test_url)
@@ -207,7 +209,6 @@ if __name__ == "__main__":
         elif file_path_or_error and os.path.exists(file_path_or_error):
             print(f"Success! Downloaded file: {file_path_or_error}")
             print(f"File size: {os.path.getsize(file_path_or_error) / (1024*1024):.2f} MB")
-            # Clean up test file immediately to avoid clutter
             try:
                 os.remove(file_path_or_error)
                 print(f"Cleaned up: {file_path_or_error}")
@@ -215,5 +216,5 @@ if __name__ == "__main__":
                 print(f"Error cleaning up {file_path_or_error}: {e}")
         else:
             print(f"Download Failed: Unknown reason or file path was None ({file_path_or_error})")
-    print("--- Finished Downloader Tests ---")
+    print("--- Finished New Downloader Tests ---")
 

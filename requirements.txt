@@ -1,3 +1,2 @@
 python-telegram-bot>=22.1
 yt-dlp>=2025.5.22
-# instaloader>=4.14.1 # Removed as yt-dlp is now used for Instagram
