@@ -9,7 +9,7 @@ from telegram.constants import ParseMode
 from telegram.error import TelegramError
 
 # Import the new downloader
-import downloader_new
+import downloader
 
 # Configure logging
 logging.basicConfig(
