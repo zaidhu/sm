@@ -9,7 +9,7 @@ from telegram.constants import ParseMode
 from telegram.error import TelegramError
 
 # Import the new downloader
-import downloader
+import downloader_new
 
 # Configure logging
 logging.basicConfig(
@@ -19,11 +19,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Get bot token from environment variable or hardcode (replace with env var ideally)
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-if not TELEGRAM_BOT_TOKEN:
-    logger.error("Telegram Bot Token not found!")
-    exit()
-
+TELEGRAM_BOT_TOKEN = "XD"
 # --- Animation Constants ---
 ANIMATION_FRAMES = ["Downloading.", "Downloading..", "Downloading..."]
 ANIMATION_INTERVAL = 0.5 # seconds
